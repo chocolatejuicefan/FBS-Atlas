@@ -1,0 +1,490 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FBS Stadium Atlas — 129 Homes of College Football</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#0A1410;
+    --turf:#132A1E;
+    --turf-light:#1E3D2A;
+    --turf-border:#2C4A38;
+    --chalk:#F1EDE2;
+    --chalk-dim:#9FAA9C;
+    --floodlight:#F2B138;
+    --floodlight-dim:#8A6A2A;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg-void);
+    color:var(--chalk);
+    font-family:'IBM Plex Sans',sans-serif;
+    overflow:hidden;
+  }
+  .app{
+    display:flex;
+    height:100vh;
+    width:100vw;
+  }
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:400px;
+    min-width:400px;
+    height:100%;
+    background:var(--turf);
+    border-right:1px solid var(--turf-border);
+    display:flex;
+    flex-direction:column;
+    z-index:10;
+  }
+  .header{
+    padding:22px 22px 0 22px;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.18em;
+    color:var(--floodlight);
+    text-transform:uppercase;
+    margin:0 0 6px 0;
+  }
+  h1{
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    font-size:32px;
+    line-height:0.95;
+    letter-spacing:0.01em;
+    margin:0 0 10px 0;
+    color:var(--chalk);
+  }
+  .sub{
+    font-size:13px;
+    color:var(--chalk-dim);
+    line-height:1.5;
+    margin:0 0 16px 0;
+  }
+
+  /* yard-line divider — signature element */
+  .yardline{
+    position:relative;
+    height:26px;
+    margin:0 0 16px 0;
+    border-top:2px solid var(--turf-border);
+  }
+  .yardline .ticks{
+    display:flex;
+    justify-content:space-between;
+    padding:0 1px;
+  }
+  .yardline .tick{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    color:var(--chalk-dim);
+    position:relative;
+    top:5px;
+  }
+  .yardline .tick::before{
+    content:'';
+    position:absolute;
+    top:-9px;
+    left:50%;
+    width:1px;
+    height:6px;
+    background:var(--turf-border);
+  }
+
+  .controls{
+    padding:0 22px 14px 22px;
+    border-bottom:1px solid var(--turf-border);
+  }
+  .search{
+    width:100%;
+    background:var(--bg-void);
+    border:1px solid var(--turf-border);
+    color:var(--chalk);
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:13.5px;
+    padding:10px 12px;
+    border-radius:3px;
+    outline:none;
+    margin-bottom:12px;
+  }
+  .search::placeholder{color:var(--chalk-dim);}
+  .search:focus{border-color:var(--floodlight-dim);}
+
+  .pills{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .pill{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.02em;
+    padding:5px 9px;
+    border-radius:2px;
+    border:1px solid var(--turf-border);
+    background:transparent;
+    color:var(--chalk-dim);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    transition:border-color .12s, color .12s, background .12s;
+    user-select:none;
+  }
+  .pill .dot{
+    width:7px;height:7px;border-radius:50%;
+    flex:none;
+  }
+  .pill.active{
+    color:var(--chalk);
+    border-color:currentColor;
+    background:var(--turf-light);
+  }
+  .pill:hover{border-color:var(--chalk-dim);}
+  .pill-clear{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    color:var(--chalk-dim);
+    background:none;
+    border:none;
+    cursor:pointer;
+    text-decoration:underline;
+    padding:5px 2px;
+  }
+
+  .count-row{
+    padding:12px 22px 8px 22px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--chalk-dim);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    display:flex;
+    justify-content:space-between;
+  }
+
+  .list{
+    flex:1;
+    overflow-y:auto;
+    padding:0 10px 20px 10px;
+  }
+  .list::-webkit-scrollbar{width:8px;}
+  .list::-webkit-scrollbar-track{background:transparent;}
+  .list::-webkit-scrollbar-thumb{background:var(--turf-border);border-radius:4px;}
+
+  .card{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:11px 12px;
+    border-radius:4px;
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:background .12s, border-color .12s;
+  }
+  .card:hover{background:var(--turf-light);}
+  .card.selected{
+    background:var(--turf-light);
+    border-color:var(--floodlight-dim);
+  }
+  .rank{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--chalk-dim);
+    width:22px;
+    flex:none;
+    text-align:right;
+  }
+  .swatch{
+    width:9px;height:9px;border-radius:50%;flex:none;
+  }
+  .card-main{
+    flex:1;
+    min-width:0;
+  }
+  .card-team{
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--chalk);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .card-stadium{
+    font-size:11.5px;
+    color:var(--chalk-dim);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .card-cap{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    font-weight:700;
+    color:var(--floodlight);
+    font-variant-numeric:tabular-nums;
+    flex:none;
+  }
+  .empty-state{
+    padding:40px 20px;
+    text-align:center;
+    color:var(--chalk-dim);
+    font-size:13px;
+  }
+
+  /* ---------- MAP ---------- */
+  .mapwrap{
+    flex:1;
+    position:relative;
+    height:100%;
+  }
+  #map{
+    height:100%;
+    width:100%;
+    background:var(--bg-void);
+  }
+  .leaflet-popup-content-wrapper{
+    background:var(--turf);
+    color:var(--chalk);
+    border-radius:5px;
+    border:1px solid var(--turf-border);
+  }
+  .leaflet-popup-tip{background:var(--turf);border:1px solid var(--turf-border);}
+  .leaflet-popup-content{margin:12px 14px;font-family:'IBM Plex Sans',sans-serif;}
+  .leaflet-container a.leaflet-popup-close-button{color:var(--chalk-dim);}
+  .popup-team{font-family:'Anton',sans-serif;font-size:17px;letter-spacing:.01em;color:var(--chalk);margin-bottom:2px;}
+  .popup-stadium{font-size:12px;color:var(--chalk-dim);margin-bottom:8px;}
+  .popup-row{
+    display:flex;justify-content:space-between;font-size:11.5px;
+    padding:3px 0;border-top:1px solid var(--turf-border);
+  }
+  .popup-row span:first-child{color:var(--chalk-dim);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;}
+  .popup-row span:last-child{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
+
+  .leaflet-control-zoom a{
+    background:var(--turf) !important;
+    color:var(--chalk) !important;
+    border-color:var(--turf-border) !important;
+  }
+  .leaflet-control-attribution{
+    background:rgba(10,20,16,0.7) !important;
+    color:var(--chalk-dim) !important;
+  }
+  .leaflet-control-attribution a{color:var(--chalk-dim) !important;}
+
+  /* mobile */
+  @media (max-width:820px){
+    .app{flex-direction:column;}
+    .sidebar{width:100%;min-width:0;height:44%;border-right:none;border-bottom:1px solid var(--turf-border);}
+    .mapwrap{height:56%;}
+    h1{font-size:26px;}
+  }
+
+  :focus-visible{outline:2px solid var(--floodlight);outline-offset:1px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="header">
+      <p class="eyebrow">FBS · 2019 SEASON DATA</p>
+      <h1>STADIUM ATLAS</h1>
+      <p class="sub">Every FBS program's home field, plotted by capacity. 129 stadiums, from 15,000-seat bowls to 107,000-seat cathedrals.</p>
+      <div class="yardline">
+        <div class="ticks">
+          <span class="tick">10</span><span class="tick">20</span><span class="tick">30</span>
+          <span class="tick">40</span><span class="tick">50</span><span class="tick">40</span>
+          <span class="tick">30</span><span class="tick">20</span><span class="tick">10</span>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <input class="search" id="search" type="text" placeholder="Search team, stadium, or city…" />
+      <div class="pills" id="pills"></div>
+    </div>
+    <div class="count-row">
+      <span id="count-label">129 stadiums</span>
+      <span>Ranked by capacity</span>
+    </div>
+    <div class="list" id="list"></div>
+  </aside>
+
+  <div class="mapwrap">
+    <div id="map"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const DATA = [{"stadium":"Michigan Stadium","city":"Ann Arbor","state":"MI","team":"Michigan","conference":"Big Ten","capacity":107601,"built":"1927","expanded":"2015","lat":42.27756,"lng":-83.74088},{"stadium":"Beaver Stadium","city":"University Park","state":"PA","team":"Penn State","conference":"Big Ten","capacity":106572,"built":"1960","expanded":"2001","lat":40.7982,"lng":-77.8599},{"stadium":"Ohio Stadium","city":"Columbus","state":"OH","team":"Ohio State","conference":"Big Ten","capacity":104944,"built":"1922","expanded":"2014","lat":39.96118,"lng":-82.99879},{"stadium":"Kyle Field","city":"College Station","state":"TX","team":"Texas A&M","conference":"SEC","capacity":102733,"built":"1927","expanded":"2015","lat":30.62798,"lng":-96.33441},{"stadium":"Neyland Stadium","city":"Knoxville","state":"TN","team":"Tennessee","conference":"SEC","capacity":102455,"built":"1921","expanded":"2010","lat":35.96064,"lng":-83.92074},{"stadium":"Tiger Stadium","city":"Baton Rouge","state":"LA","team":"LSU","conference":"SEC","capacity":102321,"built":"1924","expanded":"2014","lat":30.44332,"lng":-91.18747},{"stadium":"Bryant\u2013Denny Stadium","city":"Tuscaloosa","state":"AL","team":"Alabama","conference":"SEC","capacity":101821,"built":"1929","expanded":"2010","lat":33.20984,"lng":-87.56917},{"stadium":"Darrell K Royal\u2013Texas Memorial Stadium","city":"Austin","state":"TX","team":"Texas","conference":"Big 12","capacity":100119,"built":"1924","expanded":"2009","lat":30.26715,"lng":-97.74306},{"stadium":"Los Angeles Memorial Coliseum","city":"Los Angeles","state":"CA","team":"Southern California","conference":"Pac-12","capacity":93607,"built":"1923","expanded":"2008","lat":34.05223,"lng":-118.24368},{"stadium":"Sanford Stadium","city":"Athens","state":"GA","team":"Georgia","conference":"SEC","capacity":92746,"built":"1929","expanded":"2004","lat":33.96095,"lng":-83.37794},{"stadium":"Rose Bowl","city":"Pasadena","state":"CA","team":"UCLA","conference":"Pac-12","capacity":92542,"built":"1921","expanded":"1949","lat":34.14778,"lng":-118.14452},{"stadium":"Ben Hill Griffin Stadium","city":"Gainesville","state":"FL","team":"Florida","conference":"SEC","capacity":88548,"built":"1930","expanded":"2003","lat":29.65163,"lng":-82.32483},{"stadium":"Jordan\u2013Hare Stadium","city":"Auburn","state":"AL","team":"Auburn","conference":"SEC","capacity":87451,"built":"1939","expanded":"2004","lat":32.60986,"lng":-85.48078},{"stadium":"Memorial Stadium","city":"Lincoln","state":"NE","team":"Nebraska","conference":"Big Ten","capacity":87091,"built":"1923","expanded":"2013","lat":40.8,"lng":-96.66696},{"stadium":"Bobby Bowden Field at Doak Campbell Stadium","city":"Tallahassee","state":"FL","team":"Florida State","conference":"ACC","capacity":82300,"built":"1950","expanded":"2003","lat":30.43826,"lng":-84.28073},{"stadium":"Gaylord Family Oklahoma Memorial Stadium","city":"Norman","state":"OK","team":"Oklahoma","conference":"Big 12","capacity":82112,"built":"1925","expanded":"2003","lat":35.22257,"lng":-97.43948},{"stadium":"Memorial Stadium","city":"Clemson","state":"SC","team":"Clemson","conference":"ACC","capacity":81500,"built":"1942","expanded":"2006","lat":34.68344,"lng":-82.83737},{"stadium":"Notre Dame Stadium","city":"Notre Dame","state":"IN","team":"Notre Dame","conference":"Independent","capacity":80795,"built":"1930","expanded":"1997","lat":41.7031,"lng":-86.2389},{"stadium":"Camp Randall Stadium","city":"Madison","state":"WI","team":"Wisconsin","conference":"Big Ten","capacity":80321,"built":"1917","expanded":"2005","lat":43.07305,"lng":-89.40123},{"stadium":"Williams-Brice Stadium","city":"Columbia","state":"SC","team":"South Carolina","conference":"SEC","capacity":80250,"built":"1934","expanded":"1996","lat":34.00071,"lng":-81.03481},{"stadium":"Spartan Stadium","city":"East Lansing","state":"MI","team":"Michigan State","conference":"Big Ten","capacity":75005,"built":"1923","expanded":"2005","lat":42.73698,"lng":-84.48387},{"stadium":"Donald W. Reynolds Razorback Stadium","city":"Fayetteville","state":"AR","team":"Arkansas","conference":"SEC","capacity":72000,"built":"1938","expanded":"2006","lat":36.06258,"lng":-94.15743},{"stadium":"Sun Devil Stadium, Frank Kush Field","city":"Tempe","state":"AZ","team":"Arizona State","conference":"Pac-12","capacity":71706,"built":"1958","expanded":"1998","lat":33.41477,"lng":-111.90931},{"stadium":"Faurot Field","city":"Columbia","state":"MO","team":"Missouri","conference":"SEC","capacity":71168,"built":"1927","expanded":"1997","lat":38.95171,"lng":-92.33407},{"stadium":"Kinnick Stadium","city":"Iowa City","state":"IA","team":"Iowa","conference":"Big Ten","capacity":70585,"built":"1929","expanded":"2006","lat":41.66113,"lng":-91.53017},{"stadium":"Qualcomm Stadium","city":"San Diego","state":"CA","team":"San Diego State","conference":"Mountain West","capacity":70561,"built":"1967","expanded":"1997","lat":32.71571,"lng":-117.16472},{"stadium":"Husky Stadium","city":"Seattle","state":"WA","team":"Washington","conference":"Pac-12","capacity":70500,"built":"1920","expanded":"2012","lat":47.60621,"lng":-122.33207},{"stadium":"Gillette Stadium","city":"Foxborough","state":"MA","team":"UMass","conference":"MAC","capacity":68756,"built":"2002","expanded":"","lat":42.0654,"lng":-71.2478},{"stadium":"Lincoln Financial Field","city":"Philadelphia","state":"PA","team":"Temple","conference":"American","capacity":68532,"built":"2003","expanded":"","lat":39.95238,"lng":-75.16362},{"stadium":"Heinz Field","city":"Pittsburgh","state":"PA","team":"Pittsburgh","conference":"ACC","capacity":68400,"built":"2001","expanded":"","lat":40.44062,"lng":-79.99589},{"stadium":"Lane Stadium","city":"Blacksburg","state":"VA","team":"Virginia Tech","conference":"ACC","capacity":66233,"built":"1965","expanded":"2005","lat":37.22957,"lng":-80.41394},{"stadium":"Raymond James Stadium","city":"Tampa","state":"FL","team":"USF","conference":"American","capacity":65857,"built":"1998","expanded":"","lat":27.94752,"lng":-82.45843},{"stadium":"Sun Life Stadium","city":"Miami Gardens","state":"FL","team":"Miami","conference":"ACC","capacity":65326,"built":"1987","expanded":"2016","lat":25.94204,"lng":-80.2456},{"stadium":"Alamodome","city":"San Antonio","state":"TX","team":"UTSA","conference":"C-USA","capacity":65000,"built":"1993","expanded":"","lat":29.42412,"lng":-98.49363},{"stadium":"LaVell Edwards Stadium","city":"Provo","state":"UT","team":"BYU","conference":"Independent","capacity":63725,"built":"1964","expanded":"1982","lat":40.23384,"lng":-111.65853},{"stadium":"Kenan Memorial Stadium","city":"Chapel Hill","state":"NC","team":"North Carolina","conference":"ACC","capacity":62980,"built":"1927","expanded":"2011","lat":35.9132,"lng":-79.05584},{"stadium":"California Memorial Stadium","city":"Berkeley","state":"CA","team":"California","conference":"Pac-12","capacity":62717,"built":"1923","expanded":"2012","lat":37.87159,"lng":-122.27275},{"stadium":"Liberty Bowl Memorial Stadium","city":"Memphis","state":"TN","team":"Memphis","conference":"American","capacity":62380,"built":"1965","expanded":"1987","lat":35.14953,"lng":-90.04898},{"stadium":"Commonwealth Stadium","city":"Lexington","state":"KY","team":"Kentucky","conference":"SEC","capacity":62093,"built":"1973","expanded":"1999","lat":37.98869,"lng":-84.47772},{"stadium":"Jack Trice Stadium","city":"Ames","state":"IA","team":"Iowa State","conference":"Big 12","capacity":61500,"built":"1975","expanded":"2015","lat":42.03471,"lng":-93.61994},{"stadium":"Scott Stadium","city":"Charlottesville","state":"VA","team":"Virginia","conference":"ACC","capacity":61500,"built":"1931","expanded":"2000","lat":38.02931,"lng":-78.47668},{"stadium":"Davis Wade Stadium","city":"Starkville","state":"MS","team":"Mississippi State","conference":"SEC","capacity":61337,"built":"1914","expanded":"2014","lat":33.45049,"lng":-88.81961},{"stadium":"Jones AT&T Stadium","city":"Lubbock","state":"TX","team":"Texas Tech","conference":"Big 12","capacity":60862,"built":"1947","expanded":"2013","lat":33.57786,"lng":-101.85517},{"stadium":"Memorial Stadium","city":"Champaign","state":"IL","team":"Illinois","conference":"Big Ten","capacity":60670,"built":"1923","expanded":"2011","lat":40.11642,"lng":-88.24338},{"stadium":"Vaught\u2013Hemingway Stadium","city":"Oxford","state":"MS","team":"Mississippi","conference":"SEC","capacity":60580,"built":"1915","expanded":"2002","lat":34.3665,"lng":-89.51925},{"stadium":"Boone Pickens Stadium","city":"Stillwater","state":"OK","team":"Oklahoma State","conference":"Big 12","capacity":60218,"built":"1919","expanded":"2005","lat":36.11561,"lng":-97.05837},{"stadium":"Mountaineer Field at Milan Puskar Stadium","city":"Morgantown","state":"WV","team":"West Virginia","conference":"Big 12","capacity":60000,"built":"1980","expanded":"2004","lat":39.62953,"lng":-79.9559},{"stadium":"Carter\u2013Finley Stadium","city":"Raleigh","state":"NC","team":"NC State","conference":"ACC","capacity":57583,"built":"1966","expanded":"2006","lat":35.7721,"lng":-78.63861},{"stadium":"Ross\u2013Ade Stadium","city":"West Lafayette","state":"IN","team":"Purdue","conference":"Big Ten","capacity":56400,"built":"1924","expanded":"2006","lat":40.42587,"lng":-86.90807},{"stadium":"Bobby Dodd Stadium at Historic Grant Field","city":"Atlanta","state":"GA","team":"Georgia Tech","conference":"ACC","capacity":55000,"built":"1913","expanded":"2003","lat":33.749,"lng":-84.38798},{"stadium":"Papa John's Cardinal Stadium","city":"Louisville","state":"KY","team":"Louisville","conference":"ACC","capacity":55000,"built":"1998","expanded":"2009","lat":38.25424,"lng":-85.75941},{"stadium":"Autzen Stadium","city":"Eugene","state":"OR","team":"Oregon","conference":"Pac-12","capacity":54000,"built":"1967","expanded":"2002","lat":44.05207,"lng":-123.08675},{"stadium":"Memorial Stadium","city":"Bloomington","state":"IN","team":"Indiana","conference":"Big Ten","capacity":52959,"built":"1960","expanded":"2010","lat":39.16533,"lng":-86.52639},{"stadium":"TCF Bank Stadium","city":"Minneapolis","state":"MN","team":"Minnesota","conference":"Big Ten","capacity":52525,"built":"2009","expanded":"","lat":44.97997,"lng":-93.26384},{"stadium":"High Point Solutions Stadium","city":"Piscataway","state":"NJ","team":"Rutgers","conference":"Big Ten","capacity":52454,"built":"1994","expanded":"2009","lat":40.49927,"lng":-74.39904},{"stadium":"Arizona Stadium","city":"Tucson","state":"AZ","team":"Arizona","conference":"Pac-12","capacity":51811,"built":"1928","expanded":"1988","lat":32.22174,"lng":-110.92648},{"stadium":"Byrd Stadium","city":"College Park","state":"MD","team":"Maryland","conference":"Big Ten","capacity":51802,"built":"1950","expanded":"2009","lat":38.98067,"lng":-76.93692},{"stadium":"Sun Bowl Stadium","city":"El Paso","state":"TX","team":"UTEP","conference":"C-USA","capacity":51500,"built":"1963","expanded":"1981","lat":31.75872,"lng":-106.48693},{"stadium":"Folsom Field","city":"Boulder","state":"CO","team":"Colorado","conference":"Pac-12","capacity":50183,"built":"1924","expanded":"2003","lat":40.01499,"lng":-105.27055},{"stadium":"Memorial Stadium","city":"Lawrence","state":"KS","team":"Kansas","conference":"Big 12","capacity":50071,"built":"1921","expanded":"1999","lat":38.97167,"lng":-95.23525},{"stadium":"Aloha Stadium","city":"Honolulu","state":"HI","team":"Hawaii","conference":"Mountain West","capacity":50000,"built":"1975","expanded":"2003","lat":21.30694,"lng":-157.85833},{"stadium":"Dowdy\u2013Ficklen Stadium","city":"Greenville","state":"NC","team":"East Carolina","conference":"American","capacity":50000,"built":"1963","expanded":"2010","lat":35.61266,"lng":-77.36635},{"stadium":"Bill Snyder Family Football Stadium","city":"Manhattan","state":"KS","team":"Kansas State","conference":"Big 12","capacity":50000,"built":"1968","expanded":"2005","lat":39.18361,"lng":-96.57167},{"stadium":"Stanford Stadium","city":"Stanford","state":"CA","team":"Stanford","conference":"Pac-12","capacity":50000,"built":"2006","expanded":"","lat":37.4241,"lng":-122.1661},{"stadium":"Carrier Dome","city":"Syracuse","state":"NY","team":"Syracuse","conference":"ACC","capacity":49250,"built":"1980","expanded":"","lat":43.04812,"lng":-76.14742},{"stadium":"Ryan Field","city":"Evanston","state":"IL","team":"Northwestern","conference":"Big Ten","capacity":47130,"built":"1926","expanded":"1997","lat":42.04114,"lng":-87.69006},{"stadium":"Rice Stadium","city":"Houston","state":"TX","team":"Rice","conference":"C-USA","capacity":47000,"built":"1950","expanded":"","lat":29.76328,"lng":-95.36327},{"stadium":"Falcon Stadium","city":"Colorado Springs","state":"CO","team":"Air Force","conference":"Mountain West","capacity":46692,"built":"1962","expanded":"","lat":38.83388,"lng":-104.82136},{"stadium":"Reser Stadium","city":"Corvallis","state":"OR","team":"Oregon State","conference":"Pac-12","capacity":45674,"built":"1953","expanded":"2005","lat":44.56457,"lng":-123.26204},{"stadium":"Bright House Networks Stadium","city":"Orlando","state":"FL","team":"UCF","conference":"American","capacity":45323,"built":"2007","expanded":"","lat":28.53834,"lng":-81.37924},{"stadium":"McLane Stadium","city":"Waco","state":"TX","team":"Baylor","conference":"Big 12","capacity":45140,"built":"2014","expanded":"","lat":31.54933,"lng":-97.14667},{"stadium":"Rice-Eccles Stadium","city":"Salt Lake City","state":"UT","team":"Utah","conference":"Pac-12","capacity":45017,"built":"1998","expanded":"1998","lat":40.76078,"lng":-111.89105},{"stadium":"Amon G. Carter Stadium","city":"Fort Worth","state":"TX","team":"TCU","conference":"Big 12","capacity":45000,"built":"1929","expanded":"2012","lat":32.72541,"lng":-97.32085},{"stadium":"Alumni Stadium","city":"Chestnut Hill","state":"MA","team":"Boston College","conference":"ACC","capacity":44500,"built":"1957","expanded":"1995","lat":42.33065,"lng":-71.16616},{"stadium":"Bulldog Stadium","city":"Fresno","state":"CA","team":"Fresno State","conference":"Mountain West","capacity":41031,"built":"1980","expanded":"1992","lat":36.74773,"lng":-119.77237},{"stadium":"Vanderbilt Stadium","city":"Nashville","state":"TN","team":"Vanderbilt","conference":"SEC","capacity":40350,"built":"1922","expanded":"2004","lat":36.16589,"lng":-86.78444},{"stadium":"Rentschler Field","city":"East Hartford","state":"CT","team":"Connecticut","conference":"American","capacity":40000,"built":"2003","expanded":"","lat":41.78232,"lng":-72.61203},{"stadium":"Nippert Stadium","city":"Cincinnati","state":"OH","team":"Cincinnati","conference":"American","capacity":40000,"built":"1924","expanded":"2015","lat":39.12711,"lng":-84.51439},{"stadium":"TDECU Stadium","city":"Houston","state":"TX","team":"Houston","conference":"American","capacity":40000,"built":"2014","expanded":"","lat":29.76328,"lng":-95.36327},{"stadium":"University Stadium","city":"Albuquerque","state":"NM","team":"New Mexico","conference":"Mountain West","capacity":39224,"built":"1960","expanded":"2007","lat":35.08449,"lng":-106.65114},{"stadium":"Joan C. Edwards Stadium","city":"Huntington","state":"WV","team":"Marshall","conference":"C-USA","capacity":38019,"built":"1991","expanded":"2000","lat":38.41925,"lng":-82.44515},{"stadium":"Michie Stadium","city":"West Point","state":"NY","team":"Army","conference":"Independent","capacity":38000,"built":"1924","expanded":"2001","lat":41.3912,"lng":-73.9557},{"stadium":"Albertsons Stadium","city":"Boise","state":"ID","team":"Boise State","conference":"Mountain West","capacity":37000,"built":"1970","expanded":"2012","lat":43.6135,"lng":-116.20345},{"stadium":"Cajun Field","city":"Lafayette","state":"LA","team":"Louisiana-Lafayette","conference":"Sun Belt","capacity":36900,"built":"1971","expanded":"","lat":30.22409,"lng":-92.01984},{"stadium":"Sam Boyd Stadium","city":"Whitney","state":"NV","team":"UNLV","conference":"Mountain West","capacity":36800,"built":"1971","expanded":"1999","lat":36.09831,"lng":-115.0363},{"stadium":"M. M. Roberts Stadium","city":"Hattiesburg","state":"MS","team":"Southern Miss","conference":"C-USA","capacity":36000,"built":"1932","expanded":"2008","lat":31.32712,"lng":-89.29034},{"stadium":"Skelly Field at H. A. Chapman Stadium","city":"Tulsa","state":"OK","team":"Tulsa","conference":"American","capacity":35542,"built":"1930","expanded":"2005","lat":36.15398,"lng":-95.99277},{"stadium":"Sonny Lubick Field at Hughes Stadium","city":"Fort Collins","state":"CO","team":"Colorado State","conference":"Mountain West","capacity":34400,"built":"1968","expanded":"2006","lat":40.58526,"lng":-105.08442},{"stadium":"Navy\u2013Marine Corps Memorial Stadium","city":"Annapolis","state":"MD","team":"Navy","conference":"American","capacity":34000,"built":"1959","expanded":"2005","lat":38.97859,"lng":-76.49184},{"stadium":"Wallace Wade Stadium","city":"Durham","state":"NC","team":"Duke","conference":"ACC","capacity":33941,"built":"1929","expanded":"2014","lat":35.99403,"lng":-78.89862},{"stadium":"Ladd Peebles Stadium","city":"Mobile","state":"AL","team":"South Alabama","conference":"Sun Belt","capacity":33500,"built":"1948","expanded":"2009","lat":30.69436,"lng":-88.04305},{"stadium":"Kelly/Shorts Stadium","city":"Mount Pleasant","state":"MI","team":"Central Michigan","conference":"MAC","capacity":32885,"built":"1972","expanded":"1997","lat":43.59781,"lng":-84.76751},{"stadium":"Martin Stadium","city":"Pullman","state":"WA","team":"Washington State","conference":"Pac-12","capacity":32248,"built":"1972","expanded":"2000","lat":46.73127,"lng":-117.17962},{"stadium":"Gerald J. Ford Stadium","city":"University Park","state":"TX","team":"SMU","conference":"American","capacity":32000,"built":"2000","expanded":"","lat":32.85013,"lng":-96.80028},{"stadium":"BB&T Field","city":"Winston-Salem","state":"NC","team":"Wake Forest","conference":"ACC","capacity":31500,"built":"1968","expanded":"2007","lat":36.09986,"lng":-80.24422},{"stadium":"Johnny \"Red\" Floyd Stadium","city":"Murfreesboro","state":"TN","team":"Middle Tennessee","conference":"C-USA","capacity":31000,"built":"1933","expanded":"1998","lat":35.84562,"lng":-86.39027},{"stadium":"Centennial Bank Stadium","city":"Jonesboro","state":"AR","team":"Arkansas State","conference":"Sun Belt","capacity":30964,"built":"1974","expanded":"2002","lat":35.8423,"lng":-90.70428},{"stadium":"Apogee Stadium","city":"Denton","state":"TX","team":"North Texas","conference":"C-USA","capacity":30850,"built":"2011","expanded":"","lat":33.21484,"lng":-97.13307},{"stadium":"Joe Aillet Stadium","city":"Ruston","state":"LA","team":"Louisiana Tech","conference":"C-USA","capacity":30600,"built":"1968","expanded":"1989","lat":32.52321,"lng":-92.63793},{"stadium":"Spartan Stadium","city":"San Jose","state":"CA","team":"San Jose State","conference":"Mountain West","capacity":30456,"built":"1933","expanded":"1985","lat":37.33939,"lng":-121.89496},{"stadium":"Malone Stadium","city":"Monroe","state":"LA","team":"Louisiana-Monroe","conference":"Sun Belt","capacity":30427,"built":"1978","expanded":"1993","lat":32.50931,"lng":-92.1193},{"stadium":"Aggie Memorial Stadium","city":"Las Cruces","state":"NM","team":"New Mexico State","conference":"Sun Belt","capacity":30343,"built":"1978","expanded":"2005","lat":32.31232,"lng":-106.77834},{"stadium":"Waldo Stadium","city":"Kalamazoo","state":"MI","team":"Western Michigan","conference":"MAC","capacity":30200,"built":"1939","expanded":"2003","lat":42.29171,"lng":-85.58723},{"stadium":"Rynearson Stadium","city":"Ypsilanti","state":"MI","team":"Eastern Michigan","conference":"MAC","capacity":30200,"built":"1969","expanded":"1992","lat":42.24115,"lng":-83.61299},{"stadium":"Mackay Stadium","city":"Reno","state":"NV","team":"Nevada","conference":"Mountain West","capacity":30000,"built":"1966","expanded":"2016","lat":39.52963,"lng":-119.8138},{"stadium":"Bobcat Stadium","city":"San Marcos","state":"TX","team":"Texas State","conference":"Sun Belt","capacity":30000,"built":"1981","expanded":"2012","lat":29.88327,"lng":-97.94139},{"stadium":"Summa Field at InfoCision Stadium","city":"Akron","state":"OH","team":"Akron","conference":"MAC","capacity":30000,"built":"2009","expanded":"","lat":41.08144,"lng":-81.51901},{"stadium":"FAU Stadium","city":"Boca Raton","state":"FL","team":"Florida Atlantic","conference":"C-USA","capacity":30000,"built":"2011","expanded":"","lat":26.35869,"lng":-80.0831},{"stadium":"Veterans Memorial Stadium","city":"Troy","state":"AL","team":"Troy","conference":"Sun Belt","capacity":30000,"built":"1950","expanded":"2003","lat":31.80877,"lng":-85.96995},{"stadium":"Benson Field at Yulman Stadium","city":"New Orleans","state":"LA","team":"Tulane","conference":"American","capacity":30000,"built":"2014","expanded":"","lat":29.95465,"lng":-90.07507},{"stadium":"War Memorial Stadium","city":"Laramie","state":"WY","team":"Wyoming","conference":"Mountain West","capacity":29181,"built":"1950","expanded":"2010","lat":41.31137,"lng":-105.5911},{"stadium":"UB Stadium","city":"Amherst","state":"NY","team":"Buffalo","conference":"MAC","capacity":29013,"built":"1993","expanded":"","lat":42.97839,"lng":-78.79976},{"stadium":"Georgia Dome","city":"Atlanta","state":"GA","team":"Georgia State","conference":"Sun Belt","capacity":28155,"built":"1992","expanded":"","lat":33.749,"lng":-84.38798},{"stadium":"Glass Bowl","city":"Toledo","state":"OH","team":"Toledo","conference":"MAC","capacity":26248,"built":"1937","expanded":"1990","lat":41.66394,"lng":-83.55521},{"stadium":"Romney Stadium","city":"Logan","state":"UT","team":"Utah State","conference":"Mountain West","capacity":25513,"built":"1968","expanded":"1980","lat":41.73549,"lng":-111.83439},{"stadium":"Huskie Stadium","city":"DeKalb","state":"IL","team":"NIU","conference":"MAC","capacity":25500,"built":"1965","expanded":"1995","lat":41.92947,"lng":-88.75036},{"stadium":"Dix Stadium","city":"Kent","state":"OH","team":"Kent State","conference":"MAC","capacity":25000,"built":"1969","expanded":"2008","lat":41.15367,"lng":-81.35789},{"stadium":"Paulson Stadium","city":"Statesboro","state":"GA","team":"Georgia Southern","conference":"Sun Belt","capacity":24300,"built":"1984","expanded":"2014","lat":32.44879,"lng":-81.78317},{"stadium":"Yager Stadium","city":"Oxford","state":"OH","team":"Miami (OH)","conference":"MAC","capacity":24286,"built":"1983","expanded":"2005","lat":39.507,"lng":-84.74523},{"stadium":"Kidd Brewer Stadium","city":"Boone","state":"NC","team":"Appalachian State","conference":"Sun Belt","capacity":24050,"built":"1962","expanded":"2009","lat":36.21679,"lng":-81.67455},{"stadium":"Peden Stadium","city":"Athens","state":"OH","team":"Ohio","conference":"MAC","capacity":24000,"built":"1929","expanded":"2001","lat":39.32924,"lng":-82.10126},{"stadium":"Doyt Perry Stadium","city":"Bowling Green","state":"OH","team":"Bowling Green","conference":"MAC","capacity":23724,"built":"1966","expanded":"","lat":41.37477,"lng":-83.65132},{"stadium":"FIU Stadium","city":"Miami","state":"FL","team":"FIU","conference":"C-USA","capacity":23500,"built":"1995","expanded":"2012","lat":25.77427,"lng":-80.19366},{"stadium":"Scheumann Stadium","city":"Muncie","state":"IN","team":"Ball State","conference":"MAC","capacity":22500,"built":"1967","expanded":"2007","lat":40.19338,"lng":-85.38636},{"stadium":"Houchens Industries\u2013L. T. Smith Stadium","city":"Bowling Green","state":"KY","team":"Western Kentucky","conference":"C-USA","capacity":22113,"built":"1968","expanded":"2008","lat":36.99032,"lng":-86.4436},{"stadium":"Foreman Field","city":"Norfolk","state":"VA","team":"Old Dominion","conference":"C-USA","capacity":20118,"built":"1936","expanded":"2009","lat":36.84681,"lng":-76.28522},{"stadium":"Warren McGuirk Alumni Stadium","city":"Hadley","state":"MA","team":"UMass","conference":"MAC","capacity":17000,"built":"1965","expanded":"2014","lat":42.3809,"lng":-72.5301},{"stadium":"Kibbie Dome","city":"Moscow","state":"ID","team":"Idaho","conference":"Sun Belt","capacity":16000,"built":"1975","expanded":"","lat":46.73239,"lng":-117.00017},{"stadium":"Jerry Richardson Stadium","city":"Charlotte","state":"NC","team":"Charlotte","conference":"C-USA","capacity":15314,"built":"2013","expanded":"","lat":35.22709,"lng":-80.84313}]
+;
+
+const CONF_COLORS = {
+  "ACC":"#E8A33D",
+  "American":"#56B6C2",
+  "Big 12":"#D2691E",
+  "Big Ten":"#4F86C6",
+  "C-USA":"#9B7EDE",
+  "Independent":"#C9C4B4",
+  "MAC":"#6FAE8E",
+  "Mountain West":"#D9779B",
+  "Pac-12":"#52A675",
+  "SEC":"#D9534F",
+  "Sun Belt":"#E0C341"
+};
+
+// ---------- map setup ----------
+const map = L.map('map', { zoomControl:true, minZoom:3, worldCopyJump:true })
+  .setView([39.5, -98.35], 4.4);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
+
+function radiusFor(cap){
+  const c = cap || 20000;
+  return Math.max(4, Math.sqrt(c) / 17);
+}
+
+const markers = {};
+const layerGroup = L.layerGroup().addTo(map);
+
+function keyFor(d){ return d.stadium + '|' + d.city; }
+
+DATA.forEach(d => {
+  const color = CONF_COLORS[d.conference] || '#F1EDE2';
+  const m = L.circleMarker([d.lat, d.lng], {
+    radius: radiusFor(d.capacity),
+    color: color,
+    weight: 1.5,
+    fillColor: color,
+    fillOpacity: 0.55,
+    opacity: 0.9
+  });
+  m.bindPopup(`
+    <div class="popup-team">${d.team}</div>
+    <div class="popup-stadium">${d.stadium} · ${d.city}, ${d.state}</div>
+    <div class="popup-row"><span>Conference</span><span>${d.conference}</span></div>
+    <div class="popup-row"><span>Capacity</span><span>${d.capacity ? d.capacity.toLocaleString() : '—'}</span></div>
+    <div class="popup-row"><span>Built</span><span>${d.built || '—'}</span></div>
+    <div class="popup-row"><span>Expanded</span><span>${d.expanded || '—'}</span></div>
+  `, { maxWidth: 240 });
+  m.on('click', () => selectCard(keyFor(d), false));
+  markers[keyFor(d)] = m;
+  layerGroup.addLayer(m);
+});
+
+// ---------- sidebar: conference pills ----------
+const pillsEl = document.getElementById('pills');
+const activeConfs = new Set(Object.keys(CONF_COLORS));
+
+function renderPills(){
+  pillsEl.innerHTML = '';
+  Object.keys(CONF_COLORS).forEach(conf => {
+    const el = document.createElement('div');
+    el.className = 'pill' + (activeConfs.has(conf) ? ' active' : '');
+    el.style.color = activeConfs.has(conf) ? CONF_COLORS[conf] : '';
+    el.innerHTML = `<span class="dot" style="background:${CONF_COLORS[conf]}"></span>${conf}`;
+    el.addEventListener('click', () => {
+      if (activeConfs.has(conf)) activeConfs.delete(conf); else activeConfs.add(conf);
+      renderPills();
+      applyFilters();
+    });
+    pillsEl.appendChild(el);
+  });
+  const clear = document.createElement('button');
+  clear.className = 'pill-clear';
+  clear.textContent = 'reset';
+  clear.addEventListener('click', () => {
+    Object.keys(CONF_COLORS).forEach(c => activeConfs.add(c));
+    renderPills();
+    applyFilters();
+  });
+  pillsEl.appendChild(clear);
+}
+renderPills();
+
+// ---------- sidebar: list ----------
+const listEl = document.getElementById('list');
+const searchEl = document.getElementById('search');
+const countLabel = document.getElementById('count-label');
+let selectedKey = null;
+
+function matches(d, q){
+  if (!activeConfs.has(d.conference)) return false;
+  if (!q) return true;
+  const hay = (d.team + ' ' + d.stadium + ' ' + d.city + ' ' + d.state + ' ' + d.conference).toLowerCase();
+  return hay.includes(q);
+}
+
+function renderList(){
+  const q = searchEl.value.trim().toLowerCase();
+  const filtered = DATA.filter(d => matches(d, q));
+  countLabel.textContent = `${filtered.length} stadium${filtered.length===1?'':'s'}`;
+
+  if (filtered.length === 0){
+    listEl.innerHTML = '<div class="empty-state">No stadiums match. Try clearing filters or search.</div>';
+    return;
+  }
+
+  listEl.innerHTML = filtered.map((d, i) => `
+    <div class="card${keyFor(d)===selectedKey ? ' selected':''}" data-key="${keyFor(d).replace(/"/g,'&quot;')}">
+      <span class="rank">${i+1}</span>
+      <span class="swatch" style="background:${CONF_COLORS[d.conference]}"></span>
+      <div class="card-main">
+        <div class="card-team">${d.team}</div>
+        <div class="card-stadium">${d.stadium} · ${d.city}, ${d.state}</div>
+      </div>
+      <div class="card-cap">${d.capacity ? d.capacity.toLocaleString() : '—'}</div>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click', () => selectCard(card.dataset.key, true));
+  });
+}
+
+function selectCard(key, flyMap){
+  selectedKey = key;
+  document.querySelectorAll('.card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.key === key);
+  });
+  const d = DATA.find(x => keyFor(x) === key);
+  if (!d) return;
+  if (flyMap){
+    map.flyTo([d.lat, d.lng], Math.max(map.getZoom(), 7), { duration: 0.6 });
+  }
+  const m = markers[key];
+  if (m) setTimeout(() => m.openPopup(), flyMap ? 500 : 0);
+
+  const card = document.querySelector(`.card[data-key="${key.replace(/"/g,'\\"')}"]`);
+  if (card) card.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+
+function applyFilters(){
+  layerGroup.clearLayers();
+  DATA.forEach(d => {
+    if (activeConfs.has(d.conference)) layerGroup.addLayer(markers[keyFor(d)]);
+  });
+  renderList();
+}
+
+searchEl.addEventListener('input', renderList);
+
+renderList();
+</script>
+</body>
+</html>
